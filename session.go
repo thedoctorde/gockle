@@ -30,6 +30,9 @@ type Session interface {
 	// Close closes the Session.
 	Close()
 
+	// Closed
+	Closed() bool
+
 	// Columns returns a map from column names to types for keyspace and table.
 	// Schema changes during a session are not reflected; you must open a new
 	// Session to observe them.
@@ -62,6 +65,13 @@ type Session interface {
 	// Tables returns the table names for keyspace. Schema changes during a session
 	// are not reflected; you must open a new Session to observe them.
 	Tables(keyspace string) ([]string, error)
+
+	// Query generates a new query object for interacting with the database.
+	// Further details of the query may be tweaked using the resulting query
+	// value before the query is executed. Query is automatically prepared if
+	// it has not previously been executed.
+	Query(statement string, arguments ...interface{}) Query
+
 }
 
 var (
@@ -103,6 +113,11 @@ func (m SessionMock) Batch(kind BatchKind) Batch {
 // Close implements Session.
 func (m SessionMock) Close() {
 	m.Called()
+}
+
+// Closed implements Session.
+func (m SessionMock) Closed() bool {
+	return false
 }
 
 // Columns implements Session.
@@ -153,6 +168,11 @@ func (m SessionMock) Tables(keyspace string) ([]string, error) {
 	return r.Get(0).([]string), r.Error(1)
 }
 
+// Query implements Session.
+func (m SessionMock) Query(statement string, arguments ...interface{}) Query {
+	return m.Called(statement, arguments).Get(0).(Query)
+}
+
 type session struct {
 	s *gocql.Session
 }
@@ -163,6 +183,10 @@ func (s session) Batch(kind BatchKind) Batch {
 
 func (s session) Close() {
 	s.s.Close()
+}
+
+func (s session) Closed() bool {
+	return s.s.Closed()
 }
 
 func (s session) Columns(keyspace, table string) (map[string]gocql.TypeInfo, error) {
@@ -225,4 +249,8 @@ func (s session) Tables(keyspace string) ([]string, error) {
 	}
 
 	return ts, nil
+}
+
+func (s session) Query(statement string, arguments ...interface{}) Query {
+	return query{q: s.s.Query(statement, arguments...)}
 }
